@@ -386,9 +386,9 @@ export default function Game() {
       <AlertDialog open={gameState === 'gameover'}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>游戏结束！</AlertDialogTitle>
+            <AlertDialogTitle>胜利了，陈治言加油！</AlertDialogTitle>
             <AlertDialogDescription>
-              你的最终得分是: {score}。想再试一次吗？
+              你的最终得分是: {score}。好好学习！你也能和妈妈一样厉害。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
