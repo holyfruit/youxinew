@@ -3,7 +3,7 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Rocket, Shield, Star } from 'lucide-react';
+import { Rocket, Shield, Star, ArrowLeft, ArrowRight, Zap } from 'lucide-react';
 
 // 游戏常量
 const CANVAS_WIDTH = 1000;
@@ -51,6 +51,7 @@ export default function Game() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gameLoopRef = useRef<number>();
   const keysRef = useRef<{ [key: string]: boolean }>({});
+  const touchControlsRef = useRef<{ left: boolean, right: boolean }>({ left: false, right: false });
   const [score, setScore] = useState(0);
   const [gameState, setGameState] = useState<'playing' | 'gameover'>('playing');
 
@@ -60,6 +61,7 @@ export default function Game() {
   const frameCountRef = useRef(0);
 
   const shoot = useCallback(() => {
+    if (gameState !== 'playing') return;
     const player = playerRef.current;
     bulletsRef.current.push({
       x: player.x + player.width / 2 - BULLET_WIDTH / 2,
@@ -67,7 +69,7 @@ export default function Game() {
       width: BULLET_WIDTH,
       height: BULLET_HEIGHT,
     });
-  }, []);
+  }, [gameState]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     keysRef.current[e.key.toLowerCase()] = true;
@@ -159,10 +161,10 @@ export default function Game() {
     
     // 玩家移动
     const player = playerRef.current;
-    if (keysRef.current['arrowleft'] || keysRef.current['a']) {
+    if (keysRef.current['arrowleft'] || keysRef.current['a'] || touchControlsRef.current.left) {
       player.x -= PLAYER_SPEED;
     }
-    if (keysRef.current['arrowright'] || keysRef.current['d']) {
+    if (keysRef.current['arrowright'] || keysRef.current['d'] || touchControlsRef.current.right) {
       player.x += PLAYER_SPEED;
     }
 
@@ -255,9 +257,17 @@ export default function Game() {
     };
   }, [gameLoop]);
 
+  const handleTouchStart = (direction: 'left' | 'right') => {
+    touchControlsRef.current[direction] = true;
+  };
+  
+  const handleTouchEnd = (direction: 'left' | 'right') => {
+    touchControlsRef.current[direction] = false;
+  };
+
   return (
-    <div className="flex flex-col items-center gap-4 mt-8">
-      <div className="w-full max-w-[1000px] bg-card border-4 border-primary rounded-lg shadow-2xl p-2">
+    <div className="flex flex-col items-center gap-4 mt-8 w-full max-w-[1000px]">
+      <div className="w-full bg-card border-4 border-primary rounded-lg shadow-2xl p-2">
         <div className="flex justify-between items-center mb-2 px-4 text-primary">
           <div className="flex items-center gap-2 font-bold text-xl">
             <Star className="text-accent"/>
@@ -272,8 +282,37 @@ export default function Game() {
           ref={canvasRef}
           width={CANVAS_WIDTH}
           height={CANVAS_HEIGHT}
-          className="rounded-md bg-gray-800"
+          className="rounded-md bg-gray-800 w-full"
         />
+      </div>
+
+      <div className="w-full grid grid-cols-3 gap-2 mt-4 md:hidden">
+         <Button
+            className="h-16 text-lg"
+            onTouchStart={() => handleTouchStart('left')}
+            onTouchEnd={() => handleTouchEnd('left')}
+            onMouseDown={() => handleTouchStart('left')}
+            onMouseUp={() => handleTouchEnd('left')}
+            onMouseLeave={() => handleTouchEnd('left')}
+         >
+            <ArrowLeft className="mr-2" /> 左
+         </Button>
+         <Button
+            className="h-16 text-lg"
+            onClick={shoot}
+         >
+            <Zap className="mr-2"/> 开火
+         </Button>
+         <Button
+            className="h-16 text-lg"
+            onTouchStart={() => handleTouchStart('right')}
+            onTouchEnd={() => handleTouchEnd('right')}
+            onMouseDown={() => handleTouchStart('right')}
+            onMouseUp={() => handleTouchEnd('right')}
+            onMouseLeave={() => handleTouchEnd('right')}
+         >
+            右 <ArrowRight className="ml-2" />
+         </Button>
       </div>
 
       <AlertDialog open={gameState === 'gameover'}>
@@ -294,5 +333,3 @@ export default function Game() {
     </div>
   );
 }
-
-    
