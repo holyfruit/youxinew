@@ -56,14 +56,25 @@ export default function Game() {
   const [score, setScore] = useState(0);
   const [gameState, setGameState] = useState<'playing' | 'gameover'>('playing');
   const [isDragging, setIsDragging] = useState(false);
+  const [hasInteracted, setHasInteracted] = useState(false);
+
 
   const playerRef = useRef<Player>({ ...initialPlayerState });
   const bulletsRef = useRef<Bullet[]>([]);
   const enemiesRef = useRef<Enemy[]>([]);
   const frameCountRef = useRef(0);
+  
+  const playAudio = useCallback(() => {
+    if (audioRef.current && audioRef.current.paused) {
+      audioRef.current.play().catch(error => {
+        console.log("等待用户交互以播放音乐:", error);
+      });
+    }
+  }, []);
 
   const shoot = useCallback(() => {
     if (gameState !== 'playing') return;
+    if (!hasInteracted) setHasInteracted(true);
     const player = playerRef.current;
     bulletsRef.current.push({
       x: player.x + player.width / 2 - BULLET_WIDTH / 2,
@@ -71,19 +82,26 @@ export default function Game() {
       width: BULLET_WIDTH,
       height: BULLET_HEIGHT,
     });
-  }, [gameState]);
+  }, [gameState, hasInteracted]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     keysRef.current[e.key.toLowerCase()] = true;
     if (e.key === ' ' && gameState === 'playing') {
       e.preventDefault();
+      if (!hasInteracted) setHasInteracted(true);
       shoot();
     }
-  }, [gameState, shoot]);
+  }, [gameState, shoot, hasInteracted]);
 
   const handleKeyUp = useCallback((e: KeyboardEvent) => {
     keysRef.current[e.key.toLowerCase()] = false;
   }, []);
+  
+  const handleInteraction = () => {
+    if (!hasInteracted) {
+      setHasInteracted(true);
+    }
+  };
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
@@ -95,6 +113,7 @@ export default function Game() {
     // 触摸事件 (手机)
     const handleTouchStart = (e: TouchEvent) => {
       e.preventDefault();
+      handleInteraction();
       const touch = e.touches[0];
       const rect = canvas.getBoundingClientRect();
       const touchX = (touch.clientX - rect.left) * (CANVAS_WIDTH / rect.width);
@@ -114,6 +133,7 @@ export default function Game() {
     const handleTouchMove = (e: TouchEvent) => {
         e.preventDefault();
         if (!isDragging || gameState !== 'playing') return;
+        handleInteraction();
         const touch = e.touches[0];
         const rect = canvas.getBoundingClientRect();
         const touchX = (touch.clientX - rect.left) * (CANVAS_WIDTH / rect.width);
@@ -128,6 +148,7 @@ export default function Game() {
     // 鼠标事件 (电脑)
     const handleMouseDown = (e: MouseEvent) => {
       e.preventDefault();
+      handleInteraction();
       const rect = canvas.getBoundingClientRect();
       const mouseX = (e.clientX - rect.left) * (CANVAS_WIDTH / rect.width);
       const mouseY = (e.clientY - rect.top) * (CANVAS_HEIGHT / rect.height);
@@ -144,6 +165,7 @@ export default function Game() {
 
     const handleMouseMove = (e: MouseEvent) => {
       if (!isDragging || gameState !== 'playing') return;
+      handleInteraction();
       const rect = canvas.getBoundingClientRect();
       const mouseX = (e.clientX - rect.left) * (CANVAS_WIDTH / rect.width);
       playerRef.current.x = mouseX - playerRef.current.width / 2;
@@ -191,16 +213,16 @@ export default function Game() {
 
     // 播放/暂停音乐
   useEffect(() => {
-    if (audioRef.current) {
-      if (gameState === 'playing') {
+    if (hasInteracted && audioRef.current) {
+      if (gameState === 'playing' && audioRef.current.paused) {
         audioRef.current.play().catch(error => {
-          console.log("浏览器限制自动播放，需要用户交互后才能播放音乐。");
+          console.log("浏览器限制自动播放，需要用户交互后才能播放音乐。", error);
         });
-      } else {
+      } else if (gameState !== 'playing' && !audioRef.current.paused) {
         audioRef.current.pause();
       }
     }
-  }, [gameState]);
+  }, [gameState, hasInteracted]);
 
 
   const resetGame = () => {
@@ -211,6 +233,7 @@ export default function Game() {
     setGameState('playing');
     frameCountRef.current = 0;
     setIsDragging(false);
+    if (!hasInteracted) setHasInteracted(true);
   };
 
   const drawPlayer = (ctx: CanvasRenderingContext2D, player: Player) => {
@@ -274,9 +297,11 @@ export default function Game() {
     // 玩家移动 (键盘)
     const player = playerRef.current;
     if (keysRef.current['arrowleft'] || keysRef.current['a']) {
+      if (!hasInteracted) setHasInteracted(true);
       player.x -= PLAYER_SPEED;
     }
     if (keysRef.current['arrowright'] || keysRef.current['d']) {
+      if (!hasInteracted) setHasInteracted(true);
       player.x += PLAYER_SPEED;
     }
     
@@ -364,7 +389,7 @@ export default function Game() {
     drawPlayer(ctx, player);
 
     gameLoopRef.current = requestAnimationFrame(gameLoop);
-  }, [gameState, isDragging, shoot]);
+  }, [gameState, isDragging, shoot, hasInteracted]);
 
   useEffect(() => {
     gameLoopRef.current = requestAnimationFrame(gameLoop);
