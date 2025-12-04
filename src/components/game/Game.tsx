@@ -91,17 +91,20 @@ export default function Game() {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    // 触摸事件 (手机)
     const handleTouchStart = (e: TouchEvent) => {
       e.preventDefault();
       const touch = e.touches[0];
       const rect = canvas.getBoundingClientRect();
       const touchX = (touch.clientX - rect.left) * (CANVAS_WIDTH / rect.width);
+      const touchY = (touch.clientY - rect.top) * (CANVAS_HEIGHT / rect.height);
       const player = playerRef.current;
 
-      // 检查触摸是否在飞机上
       if (
         touchX > player.x &&
-        touchX < player.x + player.width
+        touchX < player.x + player.width &&
+        touchY > player.y &&
+        touchY < player.y + player.height
       ) {
         setIsDragging(true);
       }
@@ -121,20 +124,66 @@ export default function Game() {
       setIsDragging(false);
     };
 
-    canvas.addEventListener('touchstart', handleTouchStart);
-    canvas.addEventListener('touchmove', handleTouchMove);
+    // 鼠标事件 (电脑)
+    const handleMouseDown = (e: MouseEvent) => {
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = (e.clientX - rect.left) * (CANVAS_WIDTH / rect.width);
+      const mouseY = (e.clientY - rect.top) * (CANVAS_HEIGHT / rect.height);
+      const player = playerRef.current;
+      if (
+        mouseX > player.x &&
+        mouseX < player.x + player.width &&
+        mouseY > player.y &&
+        mouseY < player.y + player.height
+      ) {
+        setIsDragging(true);
+      }
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging || gameState !== 'playing') return;
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = (e.clientX - rect.left) * (CANVAS_WIDTH / rect.width);
+      playerRef.current.x = mouseX - playerRef.current.width / 2;
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+    
+    const handleMouseLeave = () => {
+        setIsDragging(false);
+    };
+
+
+    // 添加触摸事件监听
+    canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
     canvas.addEventListener('touchend', handleTouchEnd);
     canvas.addEventListener('touchcancel', handleTouchEnd);
+    
+    // 添加鼠标事件监听
+    canvas.addEventListener('mousedown', handleMouseDown);
+    canvas.addEventListener('mousemove', handleMouseMove);
+    canvas.addEventListener('mouseup', handleMouseUp);
+    canvas.addEventListener('mouseleave', handleMouseLeave);
 
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
       if (canvas) {
+        // 移除触摸事件监听
         canvas.removeEventListener('touchstart', handleTouchStart);
         canvas.removeEventListener('touchmove', handleTouchMove);
         canvas.removeEventListener('touchend', handleTouchEnd);
         canvas.removeEventListener('touchcancel', handleTouchEnd);
+        // 移除鼠标事件监听
+        canvas.removeEventListener('mousedown', handleMouseDown);
+        canvas.removeEventListener('mousemove', handleMouseMove);
+        canvas.removeEventListener('mouseup', handleMouseUp);
+        canvas.removeEventListener('mouseleave', handleMouseLeave);
       }
     };
   }, [handleKeyDown, handleKeyUp, gameState, isDragging]);
@@ -217,7 +266,7 @@ export default function Game() {
       player.x += PLAYER_SPEED;
     }
     
-    // 手机端自动开火
+    // 触摸或鼠标拖动时自动开火
     if (isDragging && frameCountRef.current % BULLET_FIRE_RATE === 0) {
       shoot();
     }
