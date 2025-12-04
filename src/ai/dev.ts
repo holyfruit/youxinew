@@ -1,5 +1,4 @@
 import { config } from 'dotenv';
 config();
 
-import '@/ai/flows/adaptive-enemy-behavior.ts';
-import '@/ai/flows/victory-message-customization.ts';
+// 移除了与旧游戏相关的 AI 流程

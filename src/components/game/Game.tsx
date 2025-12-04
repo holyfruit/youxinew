@@ -1,112 +1,71 @@
 "use client";
 
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { getEnemyBehaviorAction, getVictoryMessageAction } from '@/app/actions';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Progress } from '@/components/ui/progress';
-import { Heart, Swords } from 'lucide-react';
+import { Rocket, Shield, Star } from 'lucide-react';
 
-// Game constants
+// 游戏常量
 const CANVAS_WIDTH = 1000;
 const CANVAS_HEIGHT = 600;
-const GRAVITY = 0.6;
-const PLAYER_SPEED = 5;
-const PLAYER_JUMP = -15;
-const PLAYER_HEALTH = 100;
-const ENEMY_HEALTH = 50;
-const ATTACK_WIDTH = 60;
-const ATTACK_HEIGHT = 60;
-const ATTACK_DURATION = 15; // in frames
-const AI_UPDATE_INTERVAL = 120; // in frames (2 seconds at 60fps)
+const PLAYER_WIDTH = 60;
+const PLAYER_HEIGHT = 40;
+const PLAYER_SPEED = 7;
+const BULLET_SPEED = 10;
+const BULLET_WIDTH = 5;
+const BULLET_HEIGHT = 15;
+const ENEMY_SPEED = 2;
+const ENEMY_SPAWN_RATE = 40; // 每 40 帧生成一个敌人
 
-// Interfaces for game objects
+// 游戏对象接口
 interface GameObject {
   x: number;
   y: number;
   width: number;
   height: number;
-  vx: number;
-  vy: number;
 }
 
-interface Character extends GameObject {
-  health: number;
-  maxHealth: number;
-  isJumping: boolean;
-  isOnGround: boolean;
-  attackTimer: number;
-  attackBox: { x: number; y: number; width: number; height: number } | null;
-  isAttacking: boolean;
-  facing: 'left' | 'right';
-  isHit: number; // timer for hit flash
+interface Player extends GameObject {
+  lives: number;
 }
 
-interface Player extends Character {}
+interface Bullet extends GameObject {}
 
-interface Enemy extends Character {
-  behavior: 'patrol' | 'chase' | 'attack' | 'defend';
-  patrolRange: { start: number; end: number };
-  aiUpdateTimer: number;
+interface Enemy extends GameObject {
+  speed: number;
+  color: string;
 }
 
-interface Platform {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-// Initial game state
+// 初始游戏状态
 const initialPlayerState: Player = {
-  x: 100,
-  y: 400,
-  width: 40,
-  height: 80,
-  vx: 0,
-  vy: 0,
-  health: PLAYER_HEALTH,
-  maxHealth: PLAYER_HEALTH,
-  isJumping: false,
-  isOnGround: false,
-  attackTimer: 0,
-  attackBox: null,
-  isAttacking: false,
-  facing: 'right',
-  isHit: 0,
+  x: CANVAS_WIDTH / 2 - PLAYER_WIDTH / 2,
+  y: CANVAS_HEIGHT - PLAYER_HEIGHT - 20,
+  width: PLAYER_WIDTH,
+  height: PLAYER_HEIGHT,
+  lives: 3,
 };
 
-const initialEnemies: Enemy[] = [
-  {
-    x: 700, y: 400, width: 40, height: 80, vx: 1, vy: 0, health: ENEMY_HEALTH, maxHealth: ENEMY_HEALTH, isJumping: false, isOnGround: false, attackTimer: 0, attackBox: null, isAttacking: false, facing: 'left', behavior: 'patrol', patrolRange: { start: 600, end: 850 }, aiUpdateTimer: 0, isHit: 0,
-  },
-  {
-    x: 400, y: 200, width: 40, height: 80, vx: 1, vy: 0, health: ENEMY_HEALTH, maxHealth: ENEMY_HEALTH, isJumping: false, isOnGround: false, attackTimer: 0, attackBox: null, isAttacking: false, facing: 'left', behavior: 'patrol', patrolRange: { start: 350, end: 550 }, aiUpdateTimer: 60, isHit: 0,
-  },
-];
-
-const platforms: Platform[] = [
-  { x: 0, y: 550, width: CANVAS_WIDTH, height: 50 }, // Ground
-  { x: 300, y: 400, width: 300, height: 20 },
-  { x: 100, y: 300, width: 150, height: 20 },
-  { x: 650, y: 250, width: 200, height: 20 },
-];
+const ENEMY_COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
 
 export default function Game() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gameLoopRef = useRef<number>();
   const keysRef = useRef<{ [key: string]: boolean }>({});
-
   const [score, setScore] = useState(0);
-  const [gameState, setGameState] = useState<'playing' | 'victory' | 'defeat'>('playing');
-  const [victoryMessage, setVictoryMessage] = useState('');
+  const [gameState, setGameState] = useState<'playing' | 'gameover'>('playing');
 
   const playerRef = useRef<Player>({ ...initialPlayerState });
-  const enemiesRef = useRef<Enemy[]>(initialEnemies.map(e => ({...e})));
+  const bulletsRef = useRef<Bullet[]>([]);
+  const enemiesRef = useRef<Enemy[]>([]);
+  const frameCountRef = useRef(0);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     keysRef.current[e.key.toLowerCase()] = true;
-  }, []);
+    if (e.key === ' ' && gameState === 'playing') {
+      e.preventDefault();
+      shoot();
+    }
+  }, [gameState]);
 
   const handleKeyUp = useCallback((e: KeyboardEvent) => {
     keysRef.current[e.key.toLowerCase()] = false;
@@ -120,41 +79,44 @@ export default function Game() {
       window.removeEventListener('keyup', handleKeyUp);
     };
   }, [handleKeyDown, handleKeyUp]);
-  
+
   const resetGame = () => {
     playerRef.current = { ...initialPlayerState };
-    enemiesRef.current = initialEnemies.map(e => ({...e}));
+    bulletsRef.current = [];
+    enemiesRef.current = [];
     setScore(0);
     setGameState('playing');
-    setVictoryMessage('');
+    frameCountRef.current = 0;
   };
 
+  const shoot = () => {
+    const player = playerRef.current;
+    bulletsRef.current.push({
+      x: player.x + player.width / 2 - BULLET_WIDTH / 2,
+      y: player.y,
+      width: BULLET_WIDTH,
+      height: BULLET_HEIGHT,
+    });
+  };
 
-  const drawCharacter = (ctx: CanvasRenderingContext2D, char: Character, color: string) => {
-    if (char.isHit > 0) {
-      ctx.fillStyle = '#FF4500'; // Accent color for hit flash
-    } else {
-      ctx.fillStyle = color;
-    }
-    // Body
-    ctx.fillRect(char.x, char.y, char.width, char.height);
-    // Head
+  const drawPlayer = (ctx: CanvasRenderingContext2D, player: Player) => {
+    ctx.fillStyle = 'hsl(var(--primary))';
     ctx.beginPath();
-    ctx.arc(char.x + char.width / 2, char.y - 10, char.width / 2, 0, Math.PI * 2);
+    ctx.moveTo(player.x + player.width / 2, player.y);
+    ctx.lineTo(player.x, player.y + player.height);
+    ctx.lineTo(player.x + player.width, player.y + player.height);
+    ctx.closePath();
     ctx.fill();
-
-    // Health bar
-    if (char.health < char.maxHealth) {
-      ctx.fillStyle = '#555';
-      ctx.fillRect(char.x, char.y - 30, char.width, 5);
-      ctx.fillStyle = '#FF4500'; // Accent color
-      ctx.fillRect(char.x, char.y - 30, char.width * (char.health / char.maxHealth), 5);
-    }
-
-    if (char.isAttacking && char.attackBox) {
-      ctx.fillStyle = 'rgba(255, 69, 0, 0.5)';
-      ctx.fillRect(char.attackBox.x, char.attackBox.y, char.attackBox.width, char.attackBox.height);
-    }
+  };
+  
+  const drawBullet = (ctx: CanvasRenderingContext2D, bullet: Bullet) => {
+    ctx.fillStyle = 'hsl(var(--accent))';
+    ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
+  };
+  
+  const drawEnemy = (ctx: CanvasRenderingContext2D, enemy: Enemy) => {
+    ctx.fillStyle = enemy.color;
+    ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
   };
 
   const gameLoop = useCallback(() => {
@@ -166,184 +128,86 @@ export default function Game() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
-    // Clear canvas
-    ctx.fillStyle = '#F0F0F0'; // Light gray background
-    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-    
-    const darkGray = '#333333';
-    
-    // Draw platforms
-    ctx.fillStyle = darkGray;
-    platforms.forEach(p => ctx.fillRect(p.x, p.y, p.width, p.height));
+    frameCountRef.current++;
 
+    // 清空画布
+    ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    
+    // 玩家移动
     const player = playerRef.current;
-    const enemies = enemiesRef.current;
-
-    // Update and draw player
-    player.vx = 0;
     if (keysRef.current['arrowleft'] || keysRef.current['a']) {
-      player.vx = -PLAYER_SPEED;
-      player.facing = 'left';
+      player.x -= PLAYER_SPEED;
     }
     if (keysRef.current['arrowright'] || keysRef.current['d']) {
-      player.vx = PLAYER_SPEED;
-      player.facing = 'right';
+      player.x += PLAYER_SPEED;
     }
-    if ((keysRef.current[' '] || keysRef.current['arrowup'] || keysRef.current['w']) && player.isOnGround) {
-      player.vy = PLAYER_JUMP;
-      player.isJumping = true;
-      player.isOnGround = false;
-    }
-    if ((keysRef.current['j']) && !player.isAttacking) {
-      player.isAttacking = true;
-      player.attackTimer = ATTACK_DURATION;
-    }
-    
-    // Physics for player
-    player.vy += GRAVITY;
-    player.x += player.vx;
-    player.y += player.vy;
-    player.isOnGround = false;
 
-    // Platform collision for player
-    platforms.forEach(p => {
-      if (player.x < p.x + p.width && player.x + player.width > p.x && player.y + player.height > p.y && player.y + player.height < p.y + p.height + player.vy) {
-        player.y = p.y - player.height;
-        player.vy = 0;
-        player.isOnGround = true;
-        player.isJumping = false;
-      }
-    });
-
-    // World bounds
+    // 保持玩家在边界内
     if (player.x < 0) player.x = 0;
     if (player.x + player.width > CANVAS_WIDTH) player.x = CANVAS_WIDTH - player.width;
-    if (player.y > CANVAS_HEIGHT) { // Player fell off
-        player.health = 0;
-    }
-
-    // Player attack logic
-    if (player.isAttacking) {
-      if (player.attackTimer > 0) {
-        const attackX = player.facing === 'right' ? player.x + player.width : player.x - ATTACK_WIDTH;
-        player.attackBox = { x: attackX, y: player.y, width: ATTACK_WIDTH, height: ATTACK_HEIGHT };
-        player.attackTimer--;
-
-        enemies.forEach(enemy => {
-          if (enemy.health > 0 && player.attackBox &&
-              player.attackBox.x < enemy.x + enemy.width &&
-              player.attackBox.x + player.attackBox.width > enemy.x &&
-              player.attackBox.y < enemy.y + enemy.height &&
-              player.attackBox.y + player.attackBox.height > enemy.y) {
-            if (!enemy.isHit) {
-              enemy.health -= 25;
-              enemy.isHit = 10;
-              if (enemy.health <= 0) {
-                setScore(s => s + 100);
-              }
-            }
-          }
-        });
-      } else {
-        player.isAttacking = false;
-        player.attackBox = null;
-      }
-    }
     
-    if (player.isHit > 0) player.isHit--;
-
-    // Update and draw enemies
-    enemies.forEach(enemy => {
-        if(enemy.health <= 0) return;
-        // AI Update
-        if (enemy.aiUpdateTimer <= 0) {
-            enemy.aiUpdateTimer = AI_UPDATE_INTERVAL;
-            const playerProximity = Math.abs(player.x - enemy.x) < 200 ? 'close' : Math.abs(player.x - enemy.x) < 500 ? 'medium' : 'far';
-            getEnemyBehaviorAction({
-                playerProximity: playerProximity,
-                playerAction: player.isAttacking ? 'attacking' : (player.vx !== 0 ? 'moving' : 'idle'),
-                enemyHealth: enemy.health,
-            }).then(res => {
-                enemy.behavior = res.behavior as Enemy['behavior'];
-            });
-        } else {
-            enemy.aiUpdateTimer--;
-        }
-
-        // Behavior logic
-        switch (enemy.behavior) {
-            case 'patrol':
-                if (enemy.x <= enemy.patrolRange.start) enemy.vx = 1;
-                if (enemy.x >= enemy.patrolRange.end) enemy.vx = -1;
-                break;
-            case 'chase':
-                enemy.vx = player.x < enemy.x ? -2 : 2;
-                break;
-            case 'attack':
-                enemy.vx = 0;
-                if (!enemy.isAttacking && Math.abs(player.x - enemy.x) < 80) {
-                    enemy.isAttacking = true;
-                    enemy.attackTimer = ATTACK_DURATION;
-                }
-                break;
-            case 'defend':
-                enemy.vx = 0;
-                break;
-        }
-        enemy.facing = enemy.vx > 0 ? 'right' : 'left';
-        
-        // Enemy physics
-        enemy.vy += GRAVITY;
-        enemy.x += enemy.vx;
-        enemy.y += enemy.vy;
-        enemy.isOnGround = false;
-
-        platforms.forEach(p => {
-            if (enemy.x < p.x + p.width && enemy.x + enemy.width > p.x && enemy.y + enemy.height > p.y && enemy.y + enemy.height < p.y + p.height + enemy.vy) {
-                enemy.y = p.y - enemy.height;
-                enemy.vy = 0;
-                enemy.isOnGround = true;
-            }
-        });
-        
-        // Enemy attack logic
-        if (enemy.isAttacking) {
-            if (enemy.attackTimer > 0) {
-                const attackX = enemy.facing === 'right' ? enemy.x + enemy.width : enemy.x - ATTACK_WIDTH;
-                enemy.attackBox = { x: attackX, y: enemy.y, width: ATTACK_WIDTH, height: ATTACK_HEIGHT };
-                enemy.attackTimer--;
-
-                if (player.health > 0 && enemy.attackBox &&
-                    enemy.attackBox.x < player.x + player.width &&
-                    enemy.attackBox.x + enemy.attackBox.width > player.x &&
-                    enemy.attackBox.y < player.y + player.height &&
-                    enemy.attackBox.y + enemy.attackBox.height > player.y) {
-                  if (!player.isHit) {
-                    player.health -= 10;
-                    player.isHit = 10;
-                  }
-                }
-            } else {
-                enemy.isAttacking = false;
-                enemy.attackBox = null;
-            }
-        }
-        if(enemy.isHit > 0) enemy.isHit--;
-        drawCharacter(ctx, enemy, darkGray);
+    // 移动和绘制子弹
+    bulletsRef.current.forEach((bullet, index) => {
+      bullet.y -= BULLET_SPEED;
+      if (bullet.y < 0) {
+        bulletsRef.current.splice(index, 1);
+      }
+      drawBullet(ctx, bullet);
     });
 
-    // Draw player last to be on top
-    drawCharacter(ctx, player, darkGray);
-
-    // Check game state
-    if (player.health <= 0) {
-        setGameState('defeat');
-    } else if (enemies.every(e => e.health <= 0)) {
-        setGameState('victory');
-        getVictoryMessageAction({ playerName: 'Chen Zhiyan' }).then(res => {
-            setVictoryMessage(res.message);
-        });
+    // 生成敌人
+    if (frameCountRef.current % ENEMY_SPAWN_RATE === 0) {
+      const enemyWidth = Math.random() * 40 + 20;
+      const enemyHeight = Math.random() * 40 + 20;
+      enemiesRef.current.push({
+        x: Math.random() * (CANVAS_WIDTH - enemyWidth),
+        y: -enemyHeight,
+        width: enemyWidth,
+        height: enemyHeight,
+        speed: Math.random() * 2 + ENEMY_SPEED,
+        color: ENEMY_COLORS[Math.floor(Math.random() * ENEMY_COLORS.length)]
+      });
     }
+
+    // 移动和绘制敌人 & 碰撞检测
+    enemiesRef.current.forEach((enemy, enemyIndex) => {
+      enemy.y += enemy.speed;
+      if (enemy.y > CANVAS_HEIGHT) {
+        enemiesRef.current.splice(enemyIndex, 1);
+      }
+      drawEnemy(ctx, enemy);
+
+      // 子弹与敌人碰撞
+      bulletsRef.current.forEach((bullet, bulletIndex) => {
+        if (
+          bullet.x < enemy.x + enemy.width &&
+          bullet.x + bullet.width > enemy.x &&
+          bullet.y < enemy.y + enemy.height &&
+          bullet.y + bullet.height > enemy.y
+        ) {
+          enemiesRef.current.splice(enemyIndex, 1);
+          bulletsRef.current.splice(bulletIndex, 1);
+          setScore(s => s + 10);
+        }
+      });
+      
+      // 敌人与玩家碰撞
+      if (
+        player.x < enemy.x + enemy.width &&
+        player.x + player.width > enemy.x &&
+        player.y < enemy.y + enemy.height &&
+        player.y + player.height > enemy.y
+      ) {
+        enemiesRef.current.splice(enemyIndex, 1);
+        player.lives--;
+        if (player.lives <= 0) {
+          setGameState('gameover');
+        }
+      }
+    });
+
+    // 绘制玩家
+    drawPlayer(ctx, player);
 
     gameLoopRef.current = requestAnimationFrame(gameLoop);
   }, [gameState]);
@@ -359,45 +223,36 @@ export default function Game() {
 
   return (
     <div className="flex flex-col items-center gap-4 mt-8">
-      <div className="w-full max-w-[1000px] bg-card border rounded-lg shadow-lg p-2">
-        <div className="flex justify-between items-center mb-2 px-2">
-          <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <Heart className="text-accent" />
-                <Progress value={playerRef.current.health} className="w-40 h-3" />
-              </div>
-              <div className="font-bold text-lg">分数: {score}</div>
+      <div className="w-full max-w-[1000px] bg-card border-4 border-primary rounded-lg shadow-2xl p-2">
+        <div className="flex justify-between items-center mb-2 px-4 text-primary">
+          <div className="flex items-center gap-2 font-bold text-xl">
+            <Star className="text-accent"/>
+            分数: {score}
           </div>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Swords size={16} /> 剩余敌人: {enemiesRef.current.filter(e => e.health > 0).length}
+          <div className="flex items-center gap-2 font-bold text-xl">
+             <Shield className="text-accent" />
+             生命: {playerRef.current.lives}
           </div>
         </div>
         <canvas
           ref={canvasRef}
           width={CANVAS_WIDTH}
           height={CANVAS_HEIGHT}
-          className="rounded-md"
+          className="rounded-md bg-gray-800"
         />
       </div>
 
-      <AlertDialog open={gameState === 'victory' || gameState === 'defeat'}>
+      <AlertDialog open={gameState === 'gameover'}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{gameState === 'victory' ? '胜利!' : '失败!'}</AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div>
-                {gameState === 'victory' ? (
-                  <>
-                    <p className="text-lg mb-4">你的最终分数: {score}</p>
-                    <p className="text-accent font-semibold">{victoryMessage || '正在生成您的个性化消息...'}</p>
-                  </>
-                ) : '你被击败了。祝你下次好运！'}
-              </div>
+            <AlertDialogTitle>游戏结束！</AlertDialogTitle>
+            <AlertDialogDescription>
+              你的最终得分是: {score}。想再试一次吗？
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogAction asChild>
-                <Button onClick={resetGame}>再玩一次</Button>
+                <Button onClick={resetGame}><Rocket className="mr-2"/>再玩一次</Button>
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
