@@ -2,7 +2,7 @@ import Game from '@/components/game/Game';
 
 export default function Home() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-background p-4 sm:p-8">
+    <main className="flex min-h-screen flex-col items-center justify-start bg-background p-4 pt-12 sm:p-8 sm:pt-16">
       <div className="w-full max-w-4xl text-center">
         <h1 className="text-4xl font-bold tracking-tighter sm:text-5xl md:text-6xl text-primary font-headline">
           飞机大战
