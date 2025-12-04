@@ -8,7 +8,7 @@ export default function Home() {
           飞机大战
         </h1>
         <p className="mx-auto mt-4 max-w-[700px] text-muted-foreground md:text-xl">
-          PC端: 使用方向键或 WASD 移动，按空格键射击。手机端: 使用屏幕下方按钮操作。
+          PC端: 使用方向键或 WASD 移动，按空格键射击。手机端: 手指在屏幕上拖动飞机来移动和自动射击。
         </p>
       </div>
       <Game />

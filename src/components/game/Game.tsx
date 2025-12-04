@@ -3,19 +3,20 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Rocket, Shield, Star, ArrowLeft, ArrowRight, Zap } from 'lucide-react';
+import { Rocket, Shield, Star } from 'lucide-react';
 
 // 游戏常量
 const CANVAS_WIDTH = 1000;
 const CANVAS_HEIGHT = 600;
-const PLAYER_WIDTH = 80; // 稍微加宽飞机
-const PLAYER_HEIGHT = 50; // 稍微加高飞机
+const PLAYER_WIDTH = 80;
+const PLAYER_HEIGHT = 50;
 const PLAYER_SPEED = 7;
 const BULLET_SPEED = 10;
 const BULLET_WIDTH = 5;
 const BULLET_HEIGHT = 15;
 const ENEMY_SPEED = 2;
-const ENEMY_SPAWN_RATE = 40; // 每 40 帧生成一个敌人
+const ENEMY_SPAWN_RATE = 40;
+const BULLET_FIRE_RATE = 10; // 每 10 帧发射一颗子弹
 
 // 游戏对象接口
 interface GameObject {
@@ -51,9 +52,9 @@ export default function Game() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gameLoopRef = useRef<number>();
   const keysRef = useRef<{ [key: string]: boolean }>({});
-  const touchControlsRef = useRef<{ left: boolean, right: boolean }>({ left: false, right: false });
   const [score, setScore] = useState(0);
   const [gameState, setGameState] = useState<'playing' | 'gameover'>('playing');
+  const [isDragging, setIsDragging] = useState(false);
 
   const playerRef = useRef<Player>({ ...initialPlayerState });
   const bulletsRef = useRef<Bullet[]>([]);
@@ -86,11 +87,58 @@ export default function Game() {
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
+    
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      e.preventDefault();
+      const touch = e.touches[0];
+      const rect = canvas.getBoundingClientRect();
+      const touchX = (touch.clientX - rect.left) * (CANVAS_WIDTH / rect.width);
+      const player = playerRef.current;
+
+      // 检查触摸是否在飞机上
+      if (
+        touchX > player.x &&
+        touchX < player.x + player.width
+      ) {
+        setIsDragging(true);
+      }
+    };
+    
+    const handleTouchMove = (e: TouchEvent) => {
+        e.preventDefault();
+        if (!isDragging || gameState !== 'playing') return;
+        const touch = e.touches[0];
+        const rect = canvas.getBoundingClientRect();
+        const touchX = (touch.clientX - rect.left) * (CANVAS_WIDTH / rect.width);
+        playerRef.current.x = touchX - playerRef.current.width / 2;
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      e.preventDefault();
+      setIsDragging(false);
+    };
+
+    canvas.addEventListener('touchstart', handleTouchStart);
+    canvas.addEventListener('touchmove', handleTouchMove);
+    canvas.addEventListener('touchend', handleTouchEnd);
+    canvas.addEventListener('touchcancel', handleTouchEnd);
+
+
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      if (canvas) {
+        canvas.removeEventListener('touchstart', handleTouchStart);
+        canvas.removeEventListener('touchmove', handleTouchMove);
+        canvas.removeEventListener('touchend', handleTouchEnd);
+        canvas.removeEventListener('touchcancel', handleTouchEnd);
+      }
     };
-  }, [handleKeyDown, handleKeyUp]);
+  }, [handleKeyDown, handleKeyUp, gameState, isDragging]);
+
 
   const resetGame = () => {
     playerRef.current = { ...initialPlayerState };
@@ -99,6 +147,7 @@ export default function Game() {
     setScore(0);
     setGameState('playing');
     frameCountRef.current = 0;
+    setIsDragging(false);
   };
 
   const drawPlayer = (ctx: CanvasRenderingContext2D, player: Player) => {
@@ -159,17 +208,23 @@ export default function Game() {
     // 清空画布
     ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
     
-    // 玩家移动
+    // 玩家移动 (键盘)
     const player = playerRef.current;
-    if (keysRef.current['arrowleft'] || keysRef.current['a'] || touchControlsRef.current.left) {
+    if (keysRef.current['arrowleft'] || keysRef.current['a']) {
       player.x -= PLAYER_SPEED;
     }
-    if (keysRef.current['arrowright'] || keysRef.current['d'] || touchControlsRef.current.right) {
+    if (keysRef.current['arrowright'] || keysRef.current['d']) {
       player.x += PLAYER_SPEED;
     }
+    
+    // 手机端自动开火
+    if (isDragging && frameCountRef.current % BULLET_FIRE_RATE === 0) {
+      shoot();
+    }
+
 
     // 保持玩家在边界内
-    if (player.x < 10) player.x = 10; // 考虑机翼宽度
+    if (player.x < 10) player.x = 10;
     if (player.x + player.width > CANVAS_WIDTH - 10) player.x = CANVAS_WIDTH - player.width - 10;
     
     // 移动和绘制子弹
@@ -246,7 +301,7 @@ export default function Game() {
     drawPlayer(ctx, player);
 
     gameLoopRef.current = requestAnimationFrame(gameLoop);
-  }, [gameState]);
+  }, [gameState, isDragging, shoot]);
 
   useEffect(() => {
     gameLoopRef.current = requestAnimationFrame(gameLoop);
@@ -257,13 +312,6 @@ export default function Game() {
     };
   }, [gameLoop]);
 
-  const handleTouchStart = (direction: 'left' | 'right') => {
-    touchControlsRef.current[direction] = true;
-  };
-  
-  const handleTouchEnd = (direction: 'left' | 'right') => {
-    touchControlsRef.current[direction] = false;
-  };
 
   return (
     <div className="flex flex-col items-center gap-4 mt-8 w-full max-w-[1000px]">
@@ -282,37 +330,8 @@ export default function Game() {
           ref={canvasRef}
           width={CANVAS_WIDTH}
           height={CANVAS_HEIGHT}
-          className="rounded-md bg-gray-800 w-full"
+          className="rounded-md bg-gray-800 w-full cursor-move"
         />
-      </div>
-
-      <div className="w-full grid grid-cols-3 gap-2 mt-4 md:hidden">
-         <Button
-            className="h-16 text-lg"
-            onTouchStart={() => handleTouchStart('left')}
-            onTouchEnd={() => handleTouchEnd('left')}
-            onMouseDown={() => handleTouchStart('left')}
-            onMouseUp={() => handleTouchEnd('left')}
-            onMouseLeave={() => handleTouchEnd('left')}
-         >
-            <ArrowLeft className="mr-2" /> 左
-         </Button>
-         <Button
-            className="h-16 text-lg"
-            onClick={shoot}
-         >
-            <Zap className="mr-2"/> 开火
-         </Button>
-         <Button
-            className="h-16 text-lg"
-            onTouchStart={() => handleTouchStart('right')}
-            onTouchEnd={() => handleTouchEnd('right')}
-            onMouseDown={() => handleTouchStart('right')}
-            onMouseUp={() => handleTouchEnd('right')}
-            onMouseLeave={() => handleTouchEnd('right')}
-         >
-            右 <ArrowRight className="ml-2" />
-         </Button>
       </div>
 
       <AlertDialog open={gameState === 'gameover'}>
