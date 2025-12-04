@@ -50,6 +50,7 @@ const ENEMY_COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--c
 
 export default function Game() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
   const gameLoopRef = useRef<number>();
   const keysRef = useRef<{ [key: string]: boolean }>({});
   const [score, setScore] = useState(0);
@@ -187,6 +188,19 @@ export default function Game() {
       }
     };
   }, [handleKeyDown, handleKeyUp, gameState, isDragging]);
+
+    // 播放/暂停音乐
+  useEffect(() => {
+    if (audioRef.current) {
+      if (gameState === 'playing') {
+        audioRef.current.play().catch(error => {
+          console.log("浏览器限制自动播放，需要用户交互后才能播放音乐。");
+        });
+      } else {
+        audioRef.current.pause();
+      }
+    }
+  }, [gameState]);
 
 
   const resetGame = () => {
@@ -364,6 +378,12 @@ export default function Game() {
 
   return (
     <div className="flex flex-col items-center gap-4 mt-8 w-full max-w-[1000px]">
+       <audio
+        ref={audioRef}
+        src="https://vgmsite.com/soundtracks/space-invaders-game-boy-color/oozvirro/02%20-%20Stage%201.mp3"
+        loop
+        preload="auto"
+      ></audio>
       <div className="w-full bg-card border-4 border-primary rounded-lg shadow-2xl p-2">
         <div className="flex justify-between items-center mb-2 px-4 text-primary">
           <div className="flex items-center gap-2 font-bold text-xl">
