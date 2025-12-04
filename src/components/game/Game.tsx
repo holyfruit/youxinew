@@ -366,10 +366,10 @@ export default function Game() {
                 <Heart className="text-accent" />
                 <Progress value={playerRef.current.health} className="w-40 h-3" />
               </div>
-              <div className="font-bold text-lg">Score: {score}</div>
+              <div className="font-bold text-lg">分数: {score}</div>
           </div>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Swords size={16} /> Enemies Remaining: {enemiesRef.current.filter(e => e.health > 0).length}
+            <Swords size={16} /> 剩余敌人: {enemiesRef.current.filter(e => e.health > 0).length}
           </div>
         </div>
         <canvas
@@ -383,21 +383,21 @@ export default function Game() {
       <AlertDialog open={gameState === 'victory' || gameState === 'defeat'}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{gameState === 'victory' ? 'Victory!' : 'Defeat!'}</AlertDialogTitle>
+            <AlertDialogTitle>{gameState === 'victory' ? '胜利!' : '失败!'}</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div>
                 {gameState === 'victory' ? (
                   <>
-                    <p className="text-lg mb-4">Your final score: {score}</p>
-                    <p className="text-accent font-semibold">{victoryMessage || 'Generating your personalized message...'}</p>
+                    <p className="text-lg mb-4">你的最终分数: {score}</p>
+                    <p className="text-accent font-semibold">{victoryMessage || '正在生成您的个性化消息...'}</p>
                   </>
-                ) : 'You have been defeated. Better luck next time!'}
+                ) : '你被击败了。祝你下次好运！'}
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogAction asChild>
-                <Button onClick={resetGame}>Play Again</Button>
+                <Button onClick={resetGame}>再玩一次</Button>
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

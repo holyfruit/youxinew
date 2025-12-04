@@ -1,11 +1,11 @@
 'use server';
 
 /**
- * @fileOverview An AI agent that determines the enemy's behavior based on the player's proximity and actions.
+ * @fileOverview 一个 AI 代理，根据玩家的接近程度和行动来决定敌人的行为。
  *
- * - getEnemyBehavior - A function that determines the enemy behavior.
- * - EnemyBehaviorInput - The input type for the getEnemyBehavior function.
- * - EnemyBehaviorOutput - The return type for the getEnemyBehavior function.
+ * - getEnemyBehavior - 一个决定敌人行为的函数。
+ * - EnemyBehaviorInput - getEnemyBehavior 函数的输入类型。
+ * - EnemyBehaviorOutput - getEnemyBehavior 函数的返回类型。
  */
 
 import {ai} from '@/ai/genkit';
@@ -14,11 +14,11 @@ import {z} from 'genkit';
 const EnemyBehaviorInputSchema = z.object({
   playerProximity: z
     .string()
-    .describe("The player's proximity to the enemy (e.g., 'close', 'medium', 'far')."),
+    .describe("玩家与敌人的接近程度（例如，'近'、'中'、'远'）。"),
   playerAction: z
     .string()
-    .describe("The player's current action (e.g., 'idle', 'moving', 'attacking')."),
-  enemyHealth: z.number().describe('The current health of the enemy.'),
+    .describe("玩家当前的行为（例如，'站立'、'移动'、'攻击'）。"),
+  enemyHealth: z.number().describe('敌人的当前生命值。'),
 });
 export type EnemyBehaviorInput = z.infer<typeof EnemyBehaviorInputSchema>;
 
@@ -26,9 +26,9 @@ const EnemyBehaviorOutputSchema = z.object({
   behavior: z
     .string()
     .describe(
-      'The AI-determined behavior of the enemy (e.g., patrol, chase, attack, defend).' // Added "defend"
+      "AI 决定的敌人行为（例如，巡逻、追逐、攻击、防御）。"
     ),
-  reasoning: z.string().describe('The AI reasoning behind the chosen behavior.'),
+  reasoning: z.string().describe('AI 选择该行为的推理。'),
 });
 export type EnemyBehaviorOutput = z.infer<typeof EnemyBehaviorOutputSchema>;
 
@@ -40,18 +40,18 @@ const prompt = ai.definePrompt({
   name: 'enemyBehaviorPrompt',
   input: {schema: EnemyBehaviorInputSchema},
   output: {schema: EnemyBehaviorOutputSchema},
-  prompt: `You are an expert game AI designer. Determine the best behavior for an enemy in a game based on the current situation.
+  prompt: `你是一位专业游戏 AI 设计师。根据当前情况，为游戏中的敌人决定最佳行为。
 
-Consider the following factors:
-- Player Proximity: {{{playerProximity}}}
-- Player Action: {{{playerAction}}}
-- Enemy Health: {{{enemyHealth}}}
+考虑以下因素：
+- 玩家接近程度：{{{playerProximity}}}
+- 玩家行为：{{{playerAction}}}
+- 敌人生命值：{{{enemyHealth}}}
 
-Available Behaviors: patrol, chase, attack, defend
+可用行为：巡逻、追逐、攻击、防御
 
-Based on these factors, determine the most appropriate behavior for the enemy and provide a short explanation of your reasoning.
+根据这些因素，决定敌人最合适的行为，并简要解释你的推理。
 
-Format your response as a JSON object with "behavior" and "reasoning" fields.`,
+将你的响应格式化为包含“behavior”和“reasoning”字段的 JSON 对象。`,
 });
 
 const enemyBehaviorFlow = ai.defineFlow(

@@ -1,24 +1,24 @@
 'use server';
 
 /**
- * @fileOverview A flow for generating a personalized victory message for Chen Zhiyan.
+ * @fileOverview 用于为陈志扬生成个性化胜利消息的流程。
  *
- * - generateVictoryMessage - A function that generates a personalized victory message.
- * - VictoryMessageInput - The input type for the generateVictoryMessage function.
- * - VictoryMessageOutput - The return type for the generateVictoryMessage function.
+ * - generateVictoryMessage - 生成个性化胜利消息的函数。
+ * - VictoryMessageInput - generateVictoryMessage 函数的输入类型。
+ * - VictoryMessageOutput - generateVictoryMessage 函数的返回类型。
  */
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const VictoryMessageInputSchema = z.object({
-  playerName: z.string().describe('The name of the player who won the game.'),
+  playerName: z.string().describe('赢得游戏的玩家名称。'),
 });
 
 export type VictoryMessageInput = z.infer<typeof VictoryMessageInputSchema>;
 
 const VictoryMessageOutputSchema = z.object({
-  message: z.string().describe('The personalized victory message.'),
+  message: z.string().describe('个性化的胜利消息。'),
 });
 
 export type VictoryMessageOutput = z.infer<typeof VictoryMessageOutputSchema>;
@@ -31,7 +31,7 @@ const victoryMessagePrompt = ai.definePrompt({
   name: 'victoryMessagePrompt',
   input: {schema: VictoryMessageInputSchema},
   output: {schema: VictoryMessageOutputSchema},
-  prompt: `Congratulations, {{{playerName}}}! You've won the game! Chen Zhiyan,加油!好好学习!你也能和妈妈一样厉害!,
+  prompt: `恭喜你，{{{playerName}}}！你赢得了比赛！陈志扬，加油！好好学习！你也能和妈妈一样厉害！,
 `,
 });
 

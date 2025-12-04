@@ -3,8 +3,8 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 
 export const metadata: Metadata = {
-  title: 'Stickman Champion',
-  description: 'A stickman fighting game.',
+  title: '火柴人冠军',
+  description: '一个火柴人风格的格斗游戏',
 };
 
 export default function RootLayout({
