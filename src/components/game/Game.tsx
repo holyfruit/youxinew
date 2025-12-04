@@ -404,12 +404,11 @@ export default function Game() {
 
   return (
     <div className="flex flex-col items-center gap-4 mt-8 w-full max-w-[1000px]">
-       <audio
-        ref={audioRef}
-        src="https://vgmsite.com/soundtracks/space-invaders-game-boy-color/oozvirro/02%20-%20Stage%201.mp3"
-        loop
-        preload="auto"
-      ></audio>
+       {/* 
+         音乐链接的 SSL 证书有问题，暂时移除。
+         你可以下载一个 mp3 文件到 public 文件夹，然后像这样使用:
+         <audio ref={audioRef} src="./your-music-file.mp3" loop preload="auto" />
+       */}
       <div className="w-full bg-card border-4 border-primary rounded-lg shadow-2xl p-2">
         <div className="flex justify-between items-center mb-2 px-4 text-primary">
           <div className="flex items-center gap-2 font-bold text-xl">
