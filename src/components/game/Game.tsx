@@ -74,7 +74,10 @@ export default function Game() {
 
   const shoot = useCallback(() => {
     if (gameState !== 'playing') return;
-    if (!hasInteracted) setHasInteracted(true);
+    if (!hasInteracted) {
+        setHasInteracted(true);
+        playAudio();
+    }
     const player = playerRef.current;
     bulletsRef.current.push({
       x: player.x + player.width / 2 - BULLET_WIDTH / 2,
@@ -82,26 +85,26 @@ export default function Game() {
       width: BULLET_WIDTH,
       height: BULLET_HEIGHT,
     });
-  }, [gameState, hasInteracted]);
+  }, [gameState, hasInteracted, playAudio]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     keysRef.current[e.key.toLowerCase()] = true;
-    if (e.key === ' ' && gameState === 'playing') {
+    if (e.key === ' ') {
       e.preventDefault();
-      if (!hasInteracted) setHasInteracted(true);
       shoot();
     }
-  }, [gameState, shoot, hasInteracted]);
+  }, [shoot]);
 
   const handleKeyUp = useCallback((e: KeyboardEvent) => {
     keysRef.current[e.key.toLowerCase()] = false;
   }, []);
   
-  const handleInteraction = () => {
+  const handleInteraction = useCallback(() => {
     if (!hasInteracted) {
       setHasInteracted(true);
+      playAudio();
     }
-  };
+  }, [hasInteracted, playAudio]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
@@ -133,7 +136,6 @@ export default function Game() {
     const handleTouchMove = (e: TouchEvent) => {
         e.preventDefault();
         if (!isDragging || gameState !== 'playing') return;
-        handleInteraction();
         const touch = e.touches[0];
         const rect = canvas.getBoundingClientRect();
         const touchX = (touch.clientX - rect.left) * (CANVAS_WIDTH / rect.width);
@@ -165,7 +167,6 @@ export default function Game() {
 
     const handleMouseMove = (e: MouseEvent) => {
       if (!isDragging || gameState !== 'playing') return;
-      handleInteraction();
       const rect = canvas.getBoundingClientRect();
       const mouseX = (e.clientX - rect.left) * (CANVAS_WIDTH / rect.width);
       playerRef.current.x = mouseX - playerRef.current.width / 2;
@@ -209,20 +210,18 @@ export default function Game() {
         canvas.removeEventListener('mouseleave', handleMouseLeave);
       }
     };
-  }, [handleKeyDown, handleKeyUp, gameState, isDragging]);
+  }, [handleKeyDown, handleKeyUp, gameState, isDragging, handleInteraction]);
 
     // 播放/暂停音乐
   useEffect(() => {
     if (hasInteracted && audioRef.current) {
       if (gameState === 'playing' && audioRef.current.paused) {
-        audioRef.current.play().catch(error => {
-          console.log("浏览器限制自动播放，需要用户交互后才能播放音乐。", error);
-        });
+        playAudio();
       } else if (gameState !== 'playing' && !audioRef.current.paused) {
         audioRef.current.pause();
       }
     }
-  }, [gameState, hasInteracted]);
+  }, [gameState, hasInteracted, playAudio]);
 
 
   const resetGame = () => {
@@ -233,7 +232,9 @@ export default function Game() {
     setGameState('playing');
     frameCountRef.current = 0;
     setIsDragging(false);
-    if (!hasInteracted) setHasInteracted(true);
+    if (hasInteracted) {
+      playAudio();
+    }
   };
 
   const drawPlayer = (ctx: CanvasRenderingContext2D, player: Player) => {
@@ -297,11 +298,11 @@ export default function Game() {
     // 玩家移动 (键盘)
     const player = playerRef.current;
     if (keysRef.current['arrowleft'] || keysRef.current['a']) {
-      if (!hasInteracted) setHasInteracted(true);
+      handleInteraction();
       player.x -= PLAYER_SPEED;
     }
     if (keysRef.current['arrowright'] || keysRef.current['d']) {
-      if (!hasInteracted) setHasInteracted(true);
+      handleInteraction();
       player.x += PLAYER_SPEED;
     }
     
@@ -389,7 +390,7 @@ export default function Game() {
     drawPlayer(ctx, player);
 
     gameLoopRef.current = requestAnimationFrame(gameLoop);
-  }, [gameState, isDragging, shoot, hasInteracted]);
+  }, [gameState, isDragging, shoot, handleInteraction]);
 
   useEffect(() => {
     gameLoopRef.current = requestAnimationFrame(gameLoop);
