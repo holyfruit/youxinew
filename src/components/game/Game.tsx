@@ -8,8 +8,8 @@ import { Rocket, Shield, Star } from 'lucide-react';
 // 游戏常量
 const CANVAS_WIDTH = 1000;
 const CANVAS_HEIGHT = 600;
-const PLAYER_WIDTH = 60;
-const PLAYER_HEIGHT = 40;
+const PLAYER_WIDTH = 80; // 稍微加宽飞机
+const PLAYER_HEIGHT = 50; // 稍微加高飞机
 const PLAYER_SPEED = 7;
 const BULLET_SPEED = 10;
 const BULLET_WIDTH = 5;
@@ -59,13 +59,23 @@ export default function Game() {
   const enemiesRef = useRef<Enemy[]>([]);
   const frameCountRef = useRef(0);
 
+  const shoot = useCallback(() => {
+    const player = playerRef.current;
+    bulletsRef.current.push({
+      x: player.x + player.width / 2 - BULLET_WIDTH / 2,
+      y: player.y,
+      width: BULLET_WIDTH,
+      height: BULLET_HEIGHT,
+    });
+  }, []);
+
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     keysRef.current[e.key.toLowerCase()] = true;
     if (e.key === ' ' && gameState === 'playing') {
       e.preventDefault();
       shoot();
     }
-  }, [gameState]);
+  }, [gameState, shoot]);
 
   const handleKeyUp = useCallback((e: KeyboardEvent) => {
     keysRef.current[e.key.toLowerCase()] = false;
@@ -89,29 +99,43 @@ export default function Game() {
     frameCountRef.current = 0;
   };
 
-  const shoot = () => {
-    const player = playerRef.current;
-    bulletsRef.current.push({
-      x: player.x + player.width / 2 - BULLET_WIDTH / 2,
-      y: player.y,
-      width: BULLET_WIDTH,
-      height: BULLET_HEIGHT,
-    });
-  };
-
   const drawPlayer = (ctx: CanvasRenderingContext2D, player: Player) => {
-    ctx.fillStyle = 'hsl(var(--primary))';
+    // 绘制更逼真的飞机
+    // 机身
+    ctx.fillStyle = '#C0C0C0'; // 银色
     ctx.beginPath();
-    ctx.moveTo(player.x + player.width / 2, player.y);
-    ctx.lineTo(player.x, player.y + player.height);
-    ctx.lineTo(player.x + player.width, player.y + player.height);
+    ctx.moveTo(player.x + player.width / 2, player.y); // 机头
+    ctx.lineTo(player.x, player.y + player.height * 0.8); // 左后方
+    ctx.lineTo(player.x + player.width, player.y + player.height * 0.8); // 右后方
+    ctx.closePath();
+    ctx.fill();
+
+    // 机翼
+    ctx.fillStyle = '#A9A9A9'; // 深灰色
+    ctx.fillRect(player.x - 10, player.y + player.height * 0.5, player.width + 20, 10);
+
+    // 驾驶舱
+    ctx.fillStyle = '#87CEEB'; // 天蓝色
+    ctx.beginPath();
+    ctx.arc(player.x + player.width / 2, player.y + player.height * 0.3, 8, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // 尾翼
+    ctx.fillStyle = '#A9A9A9';
+    ctx.beginPath();
+    ctx.moveTo(player.x + player.width / 2 - 5, player.y + player.height * 0.8);
+    ctx.lineTo(player.x + player.width / 2 + 5, player.y + player.height * 0.8);
+    ctx.lineTo(player.x + player.width / 2, player.y + player.height);
     ctx.closePath();
     ctx.fill();
   };
   
   const drawBullet = (ctx: CanvasRenderingContext2D, bullet: Bullet) => {
     ctx.fillStyle = 'hsl(var(--accent))';
+    ctx.shadowColor = 'hsl(var(--accent))';
+    ctx.shadowBlur = 10;
     ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
+    ctx.shadowBlur = 0; // 重置阴影
   };
   
   const drawEnemy = (ctx: CanvasRenderingContext2D, enemy: Enemy) => {
@@ -143,8 +167,8 @@ export default function Game() {
     }
 
     // 保持玩家在边界内
-    if (player.x < 0) player.x = 0;
-    if (player.x + player.width > CANVAS_WIDTH) player.x = CANVAS_WIDTH - player.width;
+    if (player.x < 10) player.x = 10; // 考虑机翼宽度
+    if (player.x + player.width > CANVAS_WIDTH - 10) player.x = CANVAS_WIDTH - player.width - 10;
     
     // 移动和绘制子弹
     bulletsRef.current.forEach((bullet, index) => {
@@ -185,9 +209,14 @@ export default function Game() {
           bullet.y < enemy.y + enemy.height &&
           bullet.y + bullet.height > enemy.y
         ) {
-          enemiesRef.current.splice(enemyIndex, 1);
-          bulletsRef.current.splice(bulletIndex, 1);
-          setScore(s => s + 10);
+          // 使用 try-catch 避免在快速循环中因 splice 导致引用错误
+          try {
+            enemiesRef.current.splice(enemyIndex, 1);
+            bulletsRef.current.splice(bulletIndex, 1);
+            setScore(s => s + 10);
+          } catch(e) {
+            console.error(e);
+          }
         }
       });
       
@@ -198,10 +227,15 @@ export default function Game() {
         player.y < enemy.y + enemy.height &&
         player.y + player.height > enemy.y
       ) {
-        enemiesRef.current.splice(enemyIndex, 1);
-        player.lives--;
-        if (player.lives <= 0) {
-          setGameState('gameover');
+        // 使用 try-catch 避免在快速循环中因 splice 导致引用错误
+        try {
+            enemiesRef.current.splice(enemyIndex, 1);
+            player.lives--;
+            if (player.lives <= 0) {
+              setGameState('gameover');
+            }
+        } catch(e) {
+            console.error(e);
         }
       }
     });
@@ -260,3 +294,5 @@ export default function Game() {
     </div>
   );
 }
+
+    
